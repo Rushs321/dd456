@@ -6,28 +6,37 @@ export async function compressImg(request, reply, imgData) {
     const imgFormat = webp ? 'webp' : 'jpeg';
 
     try {
-        // Create the sharp instance and start the pipeline
-        let sharpInstance = sharp(imgData)
-            .grayscale(grayscale) // Apply grayscale conditionally
-            .toFormat(imgFormat, {
-                quality, // Use the provided quality
-                progressive: true,
-                optimizeScans: webp, // Optimize scans only for WebP
-                chromaSubsampling: webp ? '4:4:4' : '4:2:0', // Conditional chroma subsampling
-            });
-
-        // Convert to buffer and get info
-        const { data, info } = await sharpInstance.toBuffer({ resolveWithObject: true });
-
-        // Send response with appropriate headers
         reply
             .header('content-type', `image/${imgFormat}`)
-            .header('content-length', info.size)
             .header('x-original-size', originSize)
-            .header('x-bytes-saved', originSize - info.size)
-            .code(200)
-            .send(data);
+            .header('x-bytes-saved', 0);  // Placeholder, as we can't calculate this until the stream ends
+       
+        const transformStream = sharp()
+            .grayscale(grayscale)  // Apply grayscale conditionally
+            .toFormat(imgFormat, {
+                quality,
+                progressive: true,
+                optimizeScans: webp,  // Optimize scans only for WebP
+                chromaSubsampling: webp ? '4:4:4' : '4:2:0',  // Conditional chroma subsampling
+            });
+
+        let processedSize = 0;  // This will hold the size of the processed image
+
+        // Pipe the image data through the transform stream to the response stream
+        imgData
+            .pipe(transformStream)
+            .on('data', (chunk) => {
+                processedSize += chunk.length;  // Increment with each chunk of data
+            })
+            .on('end', () => {
+                // Adjust x-bytes-saved header once the stream has finished processing
+                reply.header('x-bytes-saved', originSize - processedSize);
+            })
+            .on('error', (error) => {
+                return redirect(request, reply);  // Fallback to redirection on error
+            })
+            .pipe(reply.raw);  // Directly pipe to the reply's raw stream
     } catch (error) {
         return redirect(request, reply);
     }
-}
+                    }
