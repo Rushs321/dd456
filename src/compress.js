@@ -15,9 +15,6 @@ export async function compressImg(request, reply, imgData) {
             .grayscale(grayscale)  // Apply grayscale conditionally
             .toFormat(imgFormat, {
                 quality,
-                progressive: true,
-                optimizeScans: webp,  // Optimize scans only for WebP
-                chromaSubsampling: webp ? '4:4:4' : '4:2:0',  // Conditional chroma subsampling
             });
 
         let processedSize = 0;  // This will hold the size of the processed image
